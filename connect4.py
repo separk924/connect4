@@ -226,7 +226,7 @@ if do_graphics:
             # pass the player a tuple (so it can't mess with the original rack)
             rack_tuple = tuple([tuple(column) for column in self.rack])
             move = self.players[self.current_player].pick_move(rack_tuple)
-
+            
             # checks to make sure that the AI has made a valid move
             assert move >=0 and move < len(self.rack)
             assert self.rack[move][-1] == 0

@@ -5,9 +5,8 @@ __author__ = "Seung Park"
 __license__ = "University of Puget Sound"
 __date__ = "February 20, 2023"
 
-import random
-import time
 import math
+import numpy as np
 
 class ComputerPlayer:
     def __init__(self, id, difficulty_level):
@@ -25,62 +24,236 @@ class ComputerPlayer:
         layout, column-major. A 0 indicates no token is there, and 1 or 2
         indicate discs from the two players. Column 0 is on the left, and row 0 
         is on the bottom. It must return an int indicating in which column to 
-        drop a disc. The player current just pauses for half a second (for 
-        effect), and then chooses a random valid move.
+        drop a disc. The player current chooses the optimal column to drop their
+        disc according to the number of plies inputted.
         """
         
-        time.sleep(0.5) # pause purely for effect--real AIs shouldn't do this
-        while True:
-            play = random.randrange(0, len(rack))
-            if rack[play][-1] == 0: return play
-            
-    def minimax(self, rack, currentDepth, maxPlayer, scores):
+        # Rotate the tuple rack
+        theRack = np.array([*rack])
+        theRack = self.rotateRack(theRack)
+
+        # run the minimax algorithm to retrieve the optimal column
+        column= self.minimax(theRack, self.id, self.difficulty, -math.inf, math.inf)[0]
+        if theRack[column][-1] == 0:
+            return column
+    
+    '''
+    This function takes a 2-D array and rotates it 90 degrees counter-clockwise, and 
+    returns the rotated 2-D array.
+    '''
+    def rotateRack(self, rack):
         
-        isTerminal = self.isTerminalNode(rack)
-        openLocations = self.findOpen(rack)
-        if currentDepth == 0 or isTerminal:
-            return 
+        # the height and width of the Connect 4 rack
+        height = len(rack)
+        width = len(rack[0])
         
-        if(maxPlayer):
+        result = []
+
+        for i in range(width-1, -1, -1):
+            colArr = []
+            for j in range(height):
+                # build the column
+                colArr.append(rack[j][i])
+                
+            # append the column to result to create 2D-array
+            result.append(colArr)
+        
+        return result
+           
+    '''
+    Minimax() takes itself, a Connect 4 Board, player, scores, difficulty,
+    alpha, and beta as arguments. This function performs the minimax algorithm
+    to find the best placement for the next disc. This function returns where
+    to place the disc
+    '''
+    def minimax(self, rack, player, difficulty, alpha, beta):
+        
+        openLocations = self.findOpenColumn(rack)
+        
+        # if the number of plies run out, either of the players win, or there
+        # is a tie
+        if difficulty == 0:
+            return None, self.evaluateScore(rack, player)
+        
+        # AI scores
+        if player == 2:
             value = -math.inf
+            column = 0
             
-            # for columns in openLocations:
+            # check all valid playing locations for each column & get new score
+            for col in openLocations:
+                row = self.findNextOpenRow(rack, col)
+                rackCopy = rack.copy()
+                rackCopy[row][col] = 2
+                newScore = self.minimax(rackCopy, 1, difficulty-1, alpha, beta)[1]
+                
+                # if newScore is greater than the current score, then update alpha
+                if newScore > value:
+                    value = newScore
+                    column = col
+                alpha = max(alpha, value)
+                
+                # stop further searching
+                if alpha >= beta:
+                    break
+                
+            return column, value
         
-            return max(self.minimax(rack, currentDepth-1, False, scores))
-        
+        # Human scores
         else:
             value = math.inf
-            
-            # for columns in openLocations:
-            
-            return max(self.minimax(rack, currentDepth-1, True, scores))
-            
-            
-        
-        
-    '''
-    This function takes a Connect 4 rack and player ID as input and returns whether
-    the last move ends the game or not
-    '''
-    def isTerminalNode(rack, player):
-        
-        return False
-    
+            column = 0
+            # check all valid playing locations for each column & get new score
+            for col in openLocations:
+                row = self.findNextOpenRow(rack, col)
+                rackCopy = rack.copy()
+                rackCopy[row][col] = 1
+                newScore = self.minimax(rackCopy, 2, difficulty-1, alpha, beta)[1]
+                
+                # if newScore is greater than the current score, then update beta
+                if newScore < value:
+                    value = newScore
+                    column = col
+                beta = min(beta, value)
+                # stop further searching
+                if alpha >= beta:
+                    break
+                
+            return column, value
+
     '''
     This function takes a Connect 4 rack as input and returns the columns that
     are open for players to drop their discs
     '''
-    def findOpen(rack):
+    def findOpenColumn(self, rack):
         height = len(rack)
+        width = len(rack[0])
         validColumns = []
-        for j in len(rack[0]):
+        for j in range(width-1):
             if rack[height-1][j] == 0:
-                  validColumns.append(j)  
+                # append the indices of the columns that are still open
+                validColumns.append(j)  
         return validColumns
-    
-    
-    def evaluation(rack):
+
+    '''
+    This function takes a Connect 4 rack and column as input and returns the
+    next open row
+    '''
+    def findNextOpenRow(self, rack, column):
+        height = len(rack)
+        for row in range(height-1, -1, -1):
+            if rack[row][column] == 0:
+                return row
         
-        pass
-    
-    
+    '''
+    This function takes a connect 4 rack, the column the piece is placed in, and
+    the player as arguments & inspects every "quartet" that can be contained 
+    within the rack and calculates the score of each player by these rules:
+        - Point value is positive if it favors the AI, and negative if it favors its 
+            opponent.
+        - If it contains at least one disc of each color, it cannot be used to win. 
+            It is worth 0.
+        - If it contains 4 discs of the same color, it is worth ±∞ (since one player 
+            has won).  
+        - If it contains 3 discs of the same color (and 1 empty) it is worth ±100.
+        - If it contains 2 discs of the same color (and 2 empties) it is worth ±10.
+        - If it contains 1 disc (and 3 empties) it is worth ±1.
+    '''
+    def evaluateScore(self, rack, player):
+        
+        # gets the number of rows
+        width = len(rack)
+        # gets the number of columns
+        height = len(rack[0])
+        
+        # keeps track of how many same-colored discs are found
+        score = 0
+        
+        # # Horizontal Quartets
+        for i in range(height-1):
+            for j in range(width-4):
+                quartet = []
+                for k in range(j, j+3):
+                    quartet.append(rack[i][k])
+                score += self.checkQuartet(quartet, player)
+        
+        # Vertical Quartets
+        for i in range(height-4):
+            for j in range(width-1):
+                quartet = []
+                for k in range(i, i+3):
+                    quartet.append(rack[k][j])
+                score += self.checkQuartet(quartet, player)
+        
+        # Diagonal (Up-Right) Quartets
+        arr = [[] for i in range(width + height - 1)]
+        for i in range(height):
+            for j in range(width):
+                arr[i+j].append(rack[j][i])
+        
+        for i in range(3, len(arr)-3):
+            for j in range(len(arr[i])-3):
+                quartet = []
+                for k in range(j, j+4):
+                    quartet.append(arr[i][k])
+                score += self.checkQuartet(quartet, player)
+
+        # Diagonal (Down-Right) Quartets
+        arr = [[] for i in range(width + height)]
+
+        ind = 0
+        for i in reversed(range(width+1)):
+            arr[ind] = np.diag(rack, k=i)
+            ind += 1
+        w = width+1
+        for i in range(1, height-1):
+            arr[w] = np.diag(rack, k=-i)
+            w += 1        
+
+        for i in range(3, len(arr)-3):
+            for j in range(len(arr[i])-3):
+                quartet = []
+                for k in range(j, j+4):
+                    quartet.append(arr[i][k])
+                score += self.checkQuartet(quartet, player)
+        
+        return score
+
+    '''
+    This function takes a quartet and the player and checks a quartet whether it 
+    contains 4, 3, 2, 1, or 0 discs of that player:
+        - Point value is positive if it favors the AI, and negative if it favors its 
+            opponent.
+        - If it contains at least one disc of each color, it cannot be used to win. 
+            It is worth 0.
+        - If it contains 4 discs of the same color, it is worth ±∞ (since one player 
+            has won).  
+        - If it contains 3 discs of the same color (and 1 empty) it is worth ±100.
+        - If it contains 2 discs of the same color (and 2 empties) it is worth ±10.
+        - If it contains 1 disc (and 3 empties) it is worth ±1.
+    '''
+    def checkQuartet(self, quartet, player):
+        score = 0
+        
+        # human player
+        if player == 1:
+            if quartet.count(player) == 4:
+                score = -math.inf
+            elif quartet.count(player) == 3 and quartet.count(0) == 1:
+                score -= 100
+            elif quartet.count(player) == 2 and quartet.count(0) == 2:
+                score -= 10
+            elif quartet.count(player) == 1 and quartet.count(0) == 3:
+                score -= 1
+        # computer player
+        else:
+            if quartet.count(player) == 4:
+                score = math.inf
+            elif quartet.count(player) == 3 and quartet.count(0) == 1:
+                score += 100
+            elif quartet.count(player) == 2 and quartet.count(0) == 2:
+                score += 10
+            elif quartet.count(player) == 1 and quartet.count(0) == 3:
+                score += 1
+        
+        return score
