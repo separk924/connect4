@@ -17,6 +17,7 @@ class ComputerPlayer:
         """
         self.id = id
         self.difficulty = difficulty_level
+        self.ab = True
 
     def pick_move(self, rack):
         """
@@ -30,35 +31,11 @@ class ComputerPlayer:
         
         # Rotate the tuple rack
         theRack = np.array([*rack])
-        theRack = self.rotateRack(theRack)
 
         # run the minimax algorithm to retrieve the optimal column
-        column= self.minimax(theRack, self.id, self.difficulty, -math.inf, math.inf)[0]
+        column= self.minimax(theRack, self.id, self.difficulty, -math.inf, math.inf, self.ab)[0]
         if theRack[column][-1] == 0:
             return column
-    
-    '''
-    This function takes a 2-D array and rotates it 90 degrees counter-clockwise, and 
-    returns the rotated 2-D array.
-    '''
-    def rotateRack(self, rack):
-        
-        # the height and width of the Connect 4 rack
-        height = len(rack)
-        width = len(rack[0])
-        
-        result = []
-
-        for i in range(width-1, -1, -1):
-            colArr = []
-            for j in range(height):
-                # build the column
-                colArr.append(rack[j][i])
-                
-            # append the column to result to create 2D-array
-            result.append(colArr)
-        
-        return result
            
     '''
     Minimax() takes itself, a Connect 4 Board, player, scores, difficulty,
@@ -66,16 +43,16 @@ class ComputerPlayer:
     to find the best placement for the next disc. This function returns where
     to place the disc
     '''
-    def minimax(self, rack, player, difficulty, alpha, beta):
-        
-        openLocations = self.findOpenColumn(rack)
+    def minimax(self, rack, player, difficulty, alpha, beta, ab):
         
         # if the number of plies run out, either of the players win, or there
         # is a tie
         if difficulty == 0:
             return None, self.evaluateScore(rack, player)
         
-        # AI scores
+        openLocations = self.findOpenColumn(rack)
+        
+        # AI
         if player == 2:
             value = -math.inf
             column = 0
@@ -84,22 +61,25 @@ class ComputerPlayer:
             for col in openLocations:
                 row = self.findNextOpenRow(rack, col)
                 rackCopy = rack.copy()
-                rackCopy[row][col] = 2
-                newScore = self.minimax(rackCopy, 1, difficulty-1, alpha, beta)[1]
+                rackCopy[col][row] = 2
+                newScore = self.minimax(rackCopy, 1, difficulty-1, alpha, beta, ab)[1]
                 
-                # if newScore is greater than the current score, then update alpha
+                # if newScore is greater than the current score, then update
                 if newScore > value:
                     value = newScore
                     column = col
-                alpha = max(alpha, value)
                 
-                # stop further searching
-                if alpha >= beta:
-                    break
+                # if alpha-beta pruning is enabled
+                if(ab):
+                    alpha = max(alpha, value)
+                    
+                    # stop further searching
+                    if alpha >= beta:
+                        break
                 
             return column, value
         
-        # Human scores
+        # Human
         else:
             value = math.inf
             column = 0
@@ -107,17 +87,21 @@ class ComputerPlayer:
             for col in openLocations:
                 row = self.findNextOpenRow(rack, col)
                 rackCopy = rack.copy()
-                rackCopy[row][col] = 1
-                newScore = self.minimax(rackCopy, 2, difficulty-1, alpha, beta)[1]
+                rackCopy[col][row] = 1
+                newScore = self.minimax(rackCopy, 2, difficulty-1, alpha, beta, ab)[1]
                 
-                # if newScore is greater than the current score, then update beta
+                # if newScore is greater than the current score, then update
                 if newScore < value:
                     value = newScore
                     column = col
-                beta = min(beta, value)
-                # stop further searching
-                if alpha >= beta:
-                    break
+                
+                # if alpha-beta pruning is enabled
+                if(ab):
+                    beta = min(beta, value)
+                    
+                    # stop further searching
+                    if alpha >= beta:
+                        break
                 
             return column, value
 
@@ -129,8 +113,10 @@ class ComputerPlayer:
         height = len(rack)
         width = len(rack[0])
         validColumns = []
-        for j in range(width-1):
-            if rack[height-1][j] == 0:
+        
+        for j in range(height):
+            if rack[j][width-1] == 0:
+                
                 # append the indices of the columns that are still open
                 validColumns.append(j)  
         return validColumns
@@ -140,9 +126,9 @@ class ComputerPlayer:
     next open row
     '''
     def findNextOpenRow(self, rack, column):
-        height = len(rack)
-        for row in range(height-1, -1, -1):
-            if rack[row][column] == 0:
+        width = len(rack[0])
+        for row in range(width):
+            if rack[column][row] == 0:
                 return row
         
     '''
