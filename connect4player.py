@@ -1,10 +1,19 @@
 """
-This Connect Four player just picks a random spot to play. It's pretty dumb.
+This Connect Four player uses the minimax algorithm to find the optimal disc
+placement according to the number of plies designated by difficulty_level.
+********************************************************************************
+********    This Connect4 player uses alpha-beta pruning, and can be    ********
+********    can be turned on/off by changing the self.ab attribute to   ********
+********                            to False.                           ******** 
+********************************************************************************
 """
 __author__ = "Seung Park"
 __license__ = "University of Puget Sound"
 __date__ = "February 20, 2023"
 
+################################################################
+######### IMPORTS
+################################################################
 import math
 import numpy as np
 
